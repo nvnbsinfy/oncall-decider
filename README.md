@@ -112,9 +112,10 @@ bonus. Ours is cost. The numbers above are the receipts.
 
 - **Generative half:** the summaries come from Bedrock (Nova Micro) or from
   a mock when there are no AWS credentials. No credentials existed on the
-  build machine, so the live Bedrock path is code-complete but untested —
-  the repo runs in mock mode until real creds are wired in. The mock is
-  dev-only; don't demo it as the real thing.
+  build machine, so the live Bedrock path was verified end-to-end on the
+  author's laptop instead (Nova Micro drives the agent and writes the
+  summaries; run log shown in the demo video). The mock is dev-only; don't
+  demo it as the real thing.
 - **`strands-decider serve`:** if you'd rather not load the model
   in-process, `strands-decider serve` exposes it over HTTP and
   `decider_client` can point at that endpoint instead.

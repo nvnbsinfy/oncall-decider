@@ -74,6 +74,7 @@ def get_model() -> tuple[Model, str]:
 
             model = BedrockModel(model_id=BEDROCK_MODEL_ID)
             logger.info("Using Bedrock generative model: %s", BEDROCK_MODEL_ID)
+            print(f"Using Bedrock generative model: {BEDROCK_MODEL_ID}")
             return model, "bedrock"
         except Exception as exc:  # Bedrock import/config failure: say so, then mock
             logger.warning("Bedrock requested but unusable (%s); falling back to mock.", exc)

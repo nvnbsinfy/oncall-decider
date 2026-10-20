@@ -21,9 +21,9 @@ from oncall_decider.agent import run_storm  # noqa: E402
 
 
 def main() -> int:
-    print("On-Call Decider — scripted storm demo (mock generative model)")
-    print("Triage and the remediation guardrail run on Decider 2B; the")
-    print("generative half is a scripted stand-in (no AWS credentials here).")
+    print("On-Call Decider — storm demo")
+    print("Decider 2B runs triage and the remediation guardrail locally.")
+    print("The generative model used for this run is named on the next line:")
     print()
 
     results = run_storm()
