@@ -1,0 +1,16 @@
+# --- Hackathon entry requirements ---
+# strands-decider + strands-agents: local decision model + agent framework
+strands-decider==0.1.0
+strands-agents==1.61.1
+
+# --- Model stack (CPU-inference capable) ---
+torch==2.14.1
+transformers==5.20.1
+peft==0.21.2
+accelerate==1.15.0
+
+# --- Bedrock generative half (mock fallback when creds absent) ---
+boto3==1.43.114
+
+# --- Config ---
+python-dotenv>=1.0.0
