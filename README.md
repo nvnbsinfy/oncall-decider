@@ -108,6 +108,36 @@ So I'm not claiming a latency win — the wins here are cost and shape:
 The contest rubric counts a measured latency *or cost* improvement as a
 bonus. Ours is cost. The numbers above are the receipts.
 
+## Optional: human-validated ServiceNow incidents
+
+Everything above is dry-run. One layer can be switched on to make exactly
+one thing real: incident creation in ServiceNow — and only after a human
+says so, per incident.
+
+With `SNOW_ENABLED=1` and `SN_INSTANCE` / `SN_USER` / `SN_PASSWORD` set,
+whenever the agent files a ticket the run stops, shows the exact payload
+(title, severity, summary), and asks the human to choose: **[c]reate**
+the incident in ServiceNow, or **[n]o incident**. Only an explicit
+"create" calls the Table API, and the returned incident number lands in
+the triage table. The incident's Caller is set to the API user the layer
+connects with (looked up from `SN_USER`). Anything else creates nothing, and the decision is
+logged in the outcome.
+
+Two deliberate limits:
+
+- The layer engages only where the agent proposed a ticket. Alerts
+  routed to a human by low triage confidence, and calls paused by the
+  guardrail, never turn into incidents here — a human judging an alert
+  is not the same act as filing an incident.
+- Creating is never the default. No answer, no incident.
+
+The pattern is written up in
+[patterns/03-human-validated-action.md](patterns/03-human-validated-action.md)
+and tested against a fake Table API server in `tests/test_servicenow.py`.
+Verified live as well: on the recorded run against a real ServiceNow
+developer instance, the expiring-cert ticket was approved and became
+incident **INC0010001**, caller set to the integration user.
+
 ## Notes
 
 - **Generative half:** the summaries come from Bedrock (Nova Micro) or from

@@ -28,7 +28,9 @@ try:
         scale_deployment,
         silence_alert,
         open_incident_ticket,
+        RECORDED_TICKETS,
     )
+    from oncall_decider.servicenow import maybe_create_validated_incident
     from oncall_decider.interventions import (
         TriageDecider,
         RemediationGuardrail,
@@ -376,6 +378,7 @@ def run_storm(alerts: list[dict] | None = None,
             agent = Agent(tools=[open_incident_ticket], model=agent_model)
 
         prompt = _render_alert(alert) + "\nAll tools are dry-run. Decide on remediation and execute it."
+        tickets_before = len(RECORDED_TICKETS)
         agent_result = agent(prompt)
         interrupted = getattr(agent_result, "stop_reason", "") == "interrupt"
 
@@ -412,6 +415,14 @@ def run_storm(alerts: list[dict] | None = None,
             result["outcome"] = "remediated (dry-run)"
         else:
             result["outcome"] = "ticket opened (dry-run)"
+
+        # Optional layer (off unless SNOW_* is configured): if the agent
+        # actually filed a ticket during this turn, a human validates the
+        # exact payload and only then is a real ServiceNow incident made.
+        new_tickets = RECORDED_TICKETS[tickets_before:]
+        if new_tickets:
+            maybe_create_validated_incident(result, new_tickets[-1])
+
         results.append(result)
 
     return results

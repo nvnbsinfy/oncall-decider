@@ -10,6 +10,13 @@ from __future__ import annotations
 
 from strands import tool
 
+# Payloads of ticket calls that actually executed, in order. A call the
+# guardrail denies never reaches the tool body, so this list is ground
+# truth for "the agent really filed this" — the human-validated
+# ServiceNow layer (servicenow.py) consumes it, and nothing else may
+# treat a proposed-but-denied call as filed.
+RECORDED_TICKETS: list[dict] = []
+
 
 @tool
 def restart_service(service: str, namespace: str = "default") -> dict:
@@ -64,6 +71,7 @@ def silence_alert(alert_id: str, duration_minutes: int, reason: str) -> dict:
 @tool
 def open_incident_ticket(title: str, severity: str, summary: str) -> dict:
     """Simulate opening an incident ticket. DRY-RUN: no real ticket is filed."""
+    RECORDED_TICKETS.append({"title": title, "severity": severity, "summary": summary})
     action = (
         f"DRY-RUN open_incident_ticket(title={title!r}, severity={severity!r}, "
         f"summary={summary!r})"

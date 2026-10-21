@@ -114,6 +114,41 @@ $env:AWS_DEFAULT_REGION = "us-east-1"
 To make them permanent, use `setx` instead of `$env:`. You can also change the
 model in `.env` via `BEDROCK_MODEL_ID`. Demo-scale usage costs cents.
 
+## Optional: real ServiceNow incidents (human-validated)
+
+Everything so far is dry-run. If you want the demo to be able to end with a
+real incident in ServiceNow — created only when you approve it — do this:
+
+1. Get a free Personal Developer Instance at developer.servicenow.com
+   (sign in, request an instance; takes a few minutes). Note the instance
+   URL (https://devXXXXX.service-now.com) and the admin username/password.
+2. In the same PowerShell window (venv active), set:
+
+```
+$env:SNOW_ENABLED = "1"
+$env:SN_INSTANCE = "https://devXXXXX.service-now.com"
+$env:SN_USER = "admin"
+$env:SN_PASSWORD = "your instance password"
+```
+
+3. Run the demo again: `python demo\run_storm.py`
+
+Now, each time the agent files a ticket, the run stops and shows you the
+exact incident it proposes. Type `c` to create it in ServiceNow — the demo
+prints the real incident number and it shows in the triage table — or `n`
+(or just Enter) for no incident: the decision is logged and nothing is
+created.
+
+Notes:
+
+- Not everything that reaches a human becomes an incident. The
+  low-confidence alerts and the guardrail pause stay human judgment calls;
+  this prompt only appears for tickets the agent actually proposed.
+- Your password lives only in that PowerShell window's environment. Never
+  put it in `.env` or anywhere else git can see it.
+- To switch the layer back off: `$env:SNOW_ENABLED = "0"`, or just open a
+  fresh PowerShell window.
+
 ## If something breaks
 
 - `python` not recognized: reinstall Python and tick the PATH box, then open a
