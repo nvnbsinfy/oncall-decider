@@ -60,15 +60,36 @@ The first run downloads the model (~4.5 GB). After that it is cached and starts
 fast. Expect each triage decision to take a few seconds on CPU (simple yes/no
 checks run ~1.7s; the 4-way triage over a full alert takes ~4-7s once warm, longer
 on the first couple while it warms up). The whole scripted storm takes a couple
-of minutes. You will see the triage table, then a P1 where
-the agent tries a bad remediation call, the guardrail blocks it, and the agent
-corrects itself.
+of minutes.
+
+What you see depends on which generative model runs:
+
+- **Mock mode (no AWS credentials):** the scripted model deliberately tries
+  `restart_service(namespace="staging")` on the checkout-api P1. "staging"
+  appears nowhere in the alert, so the guardrail denies it, and the agent
+  opens a grounded incident ticket instead.
+- **Bedrock mode:** Nova Micro plans its own calls, so whether anything is
+  denied depends on what it proposes. Calls the guardrail is unsure about
+  stop and ask you: type `y` to approve or press Enter to decline, and the
+  agent carries on either way.
+
+The footer lists every guardrail check with its score and outcome. For an
+unattended run, set `$env:GUARDRAIL_CONFIRM = "approve"` (or `"deny"`).
+
+To save a transcript for the repo, use the built-in log option rather than
+`Tee-Object`, which writes UTF-16 that GitHub can't display:
+
+```powershell
+python demo\run_storm.py --log bedrock-run.txt
+```
 
 Other things you can run:
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m oncall_decider.bench        # latency benchmark, writes bench\results.md
+python -m oncall_decider.bench        # benchmark vs a simulated baseline, writes bench\results.md
+$env:USE_REAL_BEDROCK = "1"; python -m oncall_decider.bench   # same, vs a real Bedrock call
+python tests\test_agent_loop.py       # agent loop + guardrail paths, fake decider (fast)
 python tests\test_guardrail.py        # guardrail unit test (uses the real model)
 ```
 
@@ -84,9 +105,12 @@ Below this number the agent asks a human instead of acting on its own. Lower it
 and the agent acts more independently; raise it and it asks more often. 0.60 is
 a sane starting point.
 
-**The guardrail question** — same file, `RemediationGuardrail.before_tool_call`.
-The yes/no question is `"Are the tool's argument values grounded in facts from
-the alert payload?"`. The two thresholds in `__init__` (`deny_threshold=0.35`,
+**The guardrail question** — same file, near `RemediationGuardrail`.
+The yes/no question is `GROUNDING_QUESTION`: `"Does every value in the
+proposed tool call appear in the alert payload above? Answer yes only if all
+of them do; answer no if any value is invented."` Arguments that are the
+agent's own plan (replica counts, silence durations, ticket title and
+summary) are listed in `PLANNING_ARGS` and left out of the check. The two thresholds in `__init__` (`deny_threshold=0.35`,
 `confirm_threshold=0.60`) control the three outcomes: confidently ungrounded
 gets denied, uncertain goes to a human, the rest proceed.
 

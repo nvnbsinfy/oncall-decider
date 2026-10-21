@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 from typing import Any, Iterable
 
@@ -46,6 +47,16 @@ from oncall_decider.alerts import build_storm
 logger = logging.getLogger(__name__)
 
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
+
+# How a guardrail Confirm is answered:
+#   ask     - prompt the person at the terminal (default). Without a terminal
+#             (CI, piped stdin) there is nobody to ask, so the call is declined.
+#   approve - approve every Confirm (only for unattended dry-run demos)
+#   deny    - decline every Confirm
+GUARDRAIL_CONFIRM = os.environ.get("GUARDRAIL_CONFIRM", "ask").strip().lower()
+MAX_CONFIRM_ROUNDS = 5
+
+_THINKING_RE = re.compile(r"<thinking>.*?</thinking>", re.S)
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +285,11 @@ def _collect_tool_calls(agent: Agent) -> tuple[list[dict], list[dict]]:
     return calls, denied
 
 
+def strip_thinking(text: str) -> str:
+    """Remove <thinking>...</thinking> blocks that some Bedrock models emit."""
+    return _THINKING_RE.sub("", text).strip()
+
+
 def _final_text(result) -> str:
     message = getattr(result, "message", {}) or {}
     parts = []
@@ -281,7 +297,44 @@ def _final_text(result) -> str:
     for block in content:
         if isinstance(block, dict) and "text" in block:
             parts.append(block["text"])
-    return "\n".join(parts).strip()
+    return strip_thinking("\n".join(parts))
+
+
+def ask_human(prompt: str, mode: str | None = None) -> bool:
+    """Answer one guardrail Confirm. Returns True to approve the tool call."""
+    mode = (mode or GUARDRAIL_CONFIRM)
+    if mode == "approve":
+        print(f"  guardrail confirm (auto-approved, GUARDRAIL_CONFIRM=approve): {prompt}", flush=True)
+        return True
+    if mode == "deny" or not sys.stdin.isatty():
+        why = "GUARDRAIL_CONFIRM=deny" if mode == "deny" else "no terminal to ask"
+        print(f"  guardrail confirm (declined, {why}): {prompt}", flush=True)
+        return False
+    answer = input(f"  GUARDRAIL: {prompt} ").strip().lower()
+    return answer in {"y", "yes"}
+
+
+def run_with_confirmations(agent: Agent, prompt: Any, asker=ask_human) -> tuple[Any, list[dict]]:
+    """Invoke the agent; answer each guardrail Confirm and resume until it finishes.
+
+    A Strands Confirm without a preset response pauses the agent with an
+    interrupt. This loop asks the human, passes the answer back as an
+    interruptResponse, and resumes. An approved call runs; a declined one is
+    cancelled and the model is told, so it can choose another step.
+    """
+    result = agent(prompt)
+    decisions: list[dict] = []
+    for _ in range(MAX_CONFIRM_ROUNDS):
+        if getattr(result, "stop_reason", "") != "interrupt" or not result.interrupts:
+            break
+        responses = []
+        for intr in result.interrupts:
+            approved = bool(asker(str(intr.reason)))
+            decisions.append({"prompt": str(intr.reason), "approved": approved})
+            responses.append({"interruptResponse": {"interruptId": intr.id,
+                                                    "response": "yes" if approved else "no"}})
+        result = agent(responses)
+    return result, decisions
 
 
 def run_storm(alerts: list[dict] | None = None,
@@ -379,24 +432,31 @@ def run_storm(alerts: list[dict] | None = None,
 
         prompt = _render_alert(alert) + "\nAll tools are dry-run. Decide on remediation and execute it."
         tickets_before = len(RECORDED_TICKETS)
-        agent_result = agent(prompt)
+        agent_result, confirmations = run_with_confirmations(agent, prompt)
         interrupted = getattr(agent_result, "stop_reason", "") == "interrupt"
+        result["confirmations"] = confirmations
+        if cls == "page_now":
+            result["guardrail_checks"] = list(guardrail.records)
 
         tool_calls, denied = _collect_tool_calls(agent)
         result["tool_calls"] = tool_calls
         result["denied_calls"] = denied
         for d in denied:
             print(f"  guardrail denied a call: {d['reason']}", flush=True)
+        for c in confirmations:
+            verdict = "approved" if c["approved"] else "declined"
+            print(f"  human {verdict} a guardrail confirm", flush=True)
         if interrupted:
-            print("  agent paused: the guardrail asked a human to confirm a call", flush=True)
+            print(f"  agent still waiting after {MAX_CONFIRM_ROUNDS} confirm rounds; stopped", flush=True)
 
         if mode == "bedrock":
             result["summary"] = _final_text(agent_result) or "(model returned no text)"
-        elif interrupted:
+        elif confirmations:
+            approved = sum(c["approved"] for c in confirmations)
             result["summary"] = (
                 f"[mock summary] {alert['service']}: the guardrail denied "
-                f"{len(denied)} ungrounded call(s); one grounded call is now "
-                f"waiting on human confirmation, so the agent paused. "
+                f"{len(denied)} ungrounded call(s) and asked a human about "
+                f"{len(confirmations)} uncertain one(s) ({approved} approved). "
                 f"No real systems touched."
             )
         elif tool_calls:
@@ -409,8 +469,11 @@ def run_storm(alerts: list[dict] | None = None,
         else:
             result["summary"] = f"[mock summary] {alert['service']}: no tool calls executed."
 
+        declined = sum(1 for c in confirmations if not c["approved"])
         if interrupted:
-            result["outcome"] = "paused: guardrail asked a human to confirm"
+            result["outcome"] = "stopped: unanswered guardrail confirm"
+        elif declined:
+            result["outcome"] = f"remediated (dry-run), human declined {declined} call(s)"
         elif cls == "page_now":
             result["outcome"] = "remediated (dry-run)"
         else:

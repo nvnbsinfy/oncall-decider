@@ -54,6 +54,15 @@ class ServiceNowConfig:
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
+def masked_instance(instance_url: str) -> str:
+    """The instance, safe for screens, logs and recordings: the shape
+    stays (you can tell it is a ServiceNow instance), the name doesn't."""
+    host = instance_url.split("://", 1)[-1].split("/", 1)[0]
+    name, _, suffix = host.partition(".")
+    shown = f"{name[:3]}•••••" if len(name) > 3 else "•••••"
+    return f"{shown}.{suffix}" if suffix else shown
+
+
 def snow_config(environ: dict | None = None) -> ServiceNowConfig | None:
     """Resolve the ServiceNow config from the environment.
 
@@ -134,7 +143,12 @@ class ServiceNowClient:
             raise ServiceNowError(f"ServiceNow unreachable: {exc.reason}") from exc
 
     def caller_sys_id(self) -> str:
-        """sys_id of the API user ('' if the lookup finds nothing)."""
+        """sys_id of the API user ('' if the lookup finds nothing).
+
+        A failed lookup is NOT silent: it cost real debugging time when
+        this was quiet, so say what happened and carry on — the caller
+        field is worth a warning, never a failed incident.
+        """
         if self._caller_sys_id is None:
             self._caller_sys_id = ""
             query = urllib.parse.urlencode({
@@ -146,8 +160,13 @@ class ServiceNowClient:
                 rows = payload.get("result", [])
                 if rows:
                     self._caller_sys_id = rows[0].get("sys_id", "")
-            except ServiceNowError:
-                pass  # caller is best-effort; creation must not fail over it
+                if not self._caller_sys_id:
+                    print(f"[oncall-decider] caller lookup: no sys_user record "
+                          f"visible for '{self._config.user}' — incident will "
+                          f"be created without a Caller.")
+            except ServiceNowError as exc:
+                print(f"[oncall-decider] caller lookup failed ({exc}) — "
+                      f"incident will be created without a Caller.")
         return self._caller_sys_id
 
     def create_incident(self, title: str, severity: str, summary: str) -> dict:
@@ -196,7 +215,8 @@ class ConsoleValidator:
         print(f"  title    : {payload['title']}")
         print(f"  severity : {payload['severity']}")
         print(f"  summary  : {payload['summary']}")
-        print(f"  target   : {config.instance_url} (ServiceNow)")
+        print(f"  target   : {masked_instance(config.instance_url)} (ServiceNow)")
+        print(f"  caller   : will be set to the API user ({config.user})")
         print("=" * 70)
         try:
             answer = input("[c]reate this incident in ServiceNow, or "
@@ -242,8 +262,10 @@ def maybe_create_validated_incident(result: dict, ticket: dict, *,
     result["servicenow"] = created
     note = f"ServiceNow incident {created['number']} created (human-validated)"
     _annotate(result, note, note)
-    print(f"[oncall-decider] ServiceNow incident created: {created['number']} "
-          f"({config.instance_url}/nav_to.do?uri=incident.do?sys_id={created['sys_id']})")
+    # No instance URL or deep link in this line on purpose: run output
+    # gets screenshotted, logged and recorded, and the number is all
+    # anyone needs to find the incident.
+    print(f"[oncall-decider] ServiceNow incident created: {created['number']}")
     return True
 
 

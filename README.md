@@ -23,8 +23,9 @@ RemediationGuardrail — Decider 2B grounding check:
     "Does every value in the proposed tool call appear in the alert payload
      above? Answer yes only if all of them do; answer no if any value is invented."
     |  noul < 0.35  --> Deny  (reason fed back so the model can self-correct)
-    |  0.35 - 0.60  --> human Confirm
+    |  0.35 - 0.60  --> human Confirm (run pauses, you approve or decline, agent resumes)
     |  >= 0.60      --> Proceed
+    |  (planning args like replicas or a ticket summary are not grounding-checked)
     v
 dry-run tools (nothing here touches real infrastructure)
     |
@@ -32,8 +33,8 @@ dry-run tools (nothing here touches real infrastructure)
 Bedrock (or mock) writes the summary
 ```
 
-Two small decisions do all the safety-critical work, and both run in about
-two seconds on a CPU. The big model never classifies, never checks
+Two small decisions do all the safety-critical work, and both run locally
+on a CPU in a few seconds each. The big model never classifies, never checks
 arguments, never runs tools — it just explains what happened.
 
 ## Quickstart
@@ -47,14 +48,17 @@ pip install -r requirements.txt
 # 2. Configure.
 cp .env.example .env
 
-# 3. Run the alert-storm demo.
-python demo/run_storm.py
+# 3. Run the alert-storm demo (answer guardrail confirms at the prompt).
+python demo/run_storm.py --log bedrock-run.txt   # --log saves a UTF-8 transcript
 
-# 4. Benchmark Decider 2B triage against a simulated LLM baseline.
-PYTHONPATH=src python -m oncall_decider.bench
+# 4. Benchmark Decider 2B triage against Bedrock on the same question.
+USE_REAL_BEDROCK=1 PYTHONPATH=src python -m oncall_decider.bench
+#    (without USE_REAL_BEDROCK=1 the baseline is a labelled 2.5 s simulation)
 
-# 5. Run the guardrail tests.
-PYTHONPATH=src python tests/test_guardrail.py
+# 5. Run the tests.
+python tests/test_agent_loop.py     # agent loop + guardrail paths, fake decider, no download
+python tests/test_servicenow.py     # ServiceNow layer against a fake Table API
+PYTHONPATH=src python tests/test_guardrail.py   # guardrail against the real model
 ```
 
 The first run downloads the Decider 2B weights (~4.5 GB) from Hugging Face.
@@ -68,19 +72,24 @@ be lifted out and reused in any agent:
 
 1. **[Triage Policy](patterns/01-triage-policy.md)** — one `choice` question
    ("Which triage class does this monitoring alert belong to?") answered
-   per alert, wired in as a Strands `InterventionHandler`. Below 0.60
-   confidence it asks a human to confirm instead of guessing.
+   per alert, as a pre-agent policy gate that decides whether an agent runs
+   at all and with which tools. Below 0.60 confidence it routes the alert to
+   a human instead of guessing.
 2. **[Remediation Guardrail](patterns/02-remediation-guardrail.md)** — one
    `noul` question ("Does every value in the proposed tool call appear in
-   the alert payload above?") asked in `before_tool_call`. Confidently
-   ungrounded calls are denied with a reason the model can act on;
-   uncertain ones ask a human; grounded ones proceed.
+   the alert payload above?") asked in `before_tool_call` by a Strands
+   `InterventionHandler`. Confidently ungrounded calls are denied with a
+   reason the model can act on; uncertain ones pause for a human, and the
+   agent resumes with the answer; grounded ones proceed.
 
 ## Benchmark results
 
 Measured on the build VM (CPU-only, no GPU, no optimized kernels), via
-`PYTHONPATH=src python -m oncall_decider.bench`. Full table in
-[`bench/results.md`](bench/results.md).
+`PYTHONPATH=src python -m oncall_decider.bench`, against a **simulated**
+2.5 s baseline. Full table in [`bench/results.md`](bench/results.md).
+Re-run with `USE_REAL_BEDROCK=1` to replace the simulated column with a
+measured Bedrock call asked the same triage question, plus agreement and
+token counts.
 
 | what | number |
 |---|---|
@@ -119,8 +128,10 @@ whenever the agent files a ticket the run stops, shows the exact payload
 (title, severity, summary), and asks the human to choose: **[c]reate**
 the incident in ServiceNow, or **[n]o incident**. Only an explicit
 "create" calls the Table API, and the returned incident number lands in
-the triage table. The incident's Caller is set to the API user the layer
-connects with (looked up from `SN_USER`). Anything else creates nothing, and the decision is
+the triage table. The client also sets the incident's Caller to the API
+user it connects with (looked up from `SN_USER`) on a best-effort
+basis — if the lookup finds nothing visible, the incident is created
+without one and the run says so. Anything else creates nothing, and the decision is
 logged in the outcome.
 
 Two deliberate limits:
@@ -136,9 +147,15 @@ The pattern is written up in
 and tested against a fake Table API server in `tests/test_servicenow.py`.
 Verified live as well: on the recorded run against a real ServiceNow
 developer instance, the expiring-cert ticket was approved and became
-incident **INC0010001**, caller set to the integration user.
+incident **INC0010001**.
 
 ## Notes
+
+- **Run transcript:** `bedrock-run.txt` was recorded before the guardrail
+  confirm loop and the banner fix, so its first lines still say "mock
+  generative model" even though the run used Bedrock (Nova Micro), and its
+  P1 alerts end "paused". Re-record it with
+  `python demo/run_storm.py --log bedrock-run.txt`.
 
 - **Generative half:** the summaries come from Bedrock (Nova Micro) or from
   a mock when there are no AWS credentials. No credentials existed on the
@@ -149,6 +166,7 @@ incident **INC0010001**, caller set to the integration user.
 - **`strands-decider serve`:** if you'd rather not load the model
   in-process, `strands-decider serve` exposes it over HTTP and
   `decider_client` can point at that endpoint instead.
+- **Licence:** Apache-2.0, same as Strands Decider. See [LICENSE](LICENSE).
 - **Everything is dry-run.** The remediation tools in this repo don't touch
   real infrastructure. The guardrail exists so that if they ever do, the
   arguments get checked first.

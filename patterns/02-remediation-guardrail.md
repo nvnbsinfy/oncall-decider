@@ -56,6 +56,33 @@ result = client.decide(state, {
 `noul` is a score from 0 to 1: low means "not grounded", high means
 "grounded", middle means "can't tell".
 
+## Facts vs. plans: which arguments to check
+
+Not every argument should come from the alert. `replicas=3`,
+`duration_minutes=30`, a ticket's title and summary: those are the agent's
+own choices or prose, not facts it copies. Asking "does `3` appear in the
+alert?" flags a sensible plan as a hallucination, and a score that happens to
+land near the boundary lets an invented value through by luck. (In an early
+Bedrock run, `scale_deployment(replicas=3)` passed the check even though `3`
+appears nowhere in the alert.)
+
+So the guardrail checks only identifying values — service, namespace,
+alert id, severity — and leaves planning arguments out of the state it shows
+the decider:
+
+```python
+PLANNING_ARGS = {
+    "scale_deployment": {"replicas"},
+    "silence_alert": {"duration_minutes", "reason"},
+    "open_incident_ticket": {"title", "summary"},
+}
+```
+
+A call with nothing left to check proceeds without a model call. Pass
+`planning_args=` to the constructor to change the split for your tools. If
+planning values need a check of their own (is `replicas=50` sane?), that is a
+different question with its own facts, so give it its own `noul`.
+
 ## The wiring: three zones
 
 ```python
@@ -77,7 +104,10 @@ class RemediationGuardrail(InterventionHandler):
 
     def before_tool_call(self, event):
         tool_name = event.tool_use["name"]
-        tool_args = dict(event.tool_use.get("input") or {})
+        tool_args = {k: v for k, v in (event.tool_use.get("input") or {}).items()
+                     if k not in PLANNING_ARGS.get(tool_name, set())}
+        if not tool_args:
+            return Proceed(reason="only planning arguments, nothing to ground")
         state = self._state_text(tool_name, tool_args)
         score = self.client.decide(state, {
             "grounded": {
@@ -123,6 +153,11 @@ class RemediationGuardrail(InterventionHandler):
         )
 ```
 
+(The version in `src/oncall_decider/interventions.py` also caches the
+decision per `toolUseId`. When a `Confirm` is answered and the agent resumes,
+Strands runs `before_tool_call` again for the same call, and without the
+cache the model would be asked twice.)
+
 Three zones, three behaviors:
 
 | Grounding score | Zone | Action |
@@ -130,6 +165,30 @@ Three zones, three behaviors:
 | `< 0.35` | confidently ungrounded | **Deny** — the call never runs |
 | `0.35 – 0.60` | uncertain | **Confirm** — a human approves or rejects |
 | `≥ 0.60` | grounded | **Proceed** |
+
+## Answering the Confirm
+
+A `Confirm` with no preset response pauses the agent: the invocation returns
+with `stop_reason == "interrupt"` and a list of `interrupts`. Nothing happens
+until you answer and resume. `agent.run_with_confirmations` does that:
+
+```python
+result = agent(prompt)
+while result.stop_reason == "interrupt":
+    responses = [
+        {"interruptResponse": {"interruptId": i.id,
+                               "response": "yes" if ask_human(i.reason) else "no"}}
+        for i in result.interrupts
+    ]
+    result = agent(responses)
+```
+
+An approved call runs. A declined one is cancelled with
+`CONFIRMATION_FAILED`, the model sees that, and it picks another step. In the
+demo, `ask_human` prompts at the terminal; set `GUARDRAIL_CONFIRM=approve` or
+`=deny` for unattended runs, and with no terminal it declines (fail safe).
+
+## Deny talks back
 
 The Deny path matters more than it looks: `Deny(reason=...)` feeds the
 reason string back into the model, so the agent gets to see *why* it was

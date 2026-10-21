@@ -1,8 +1,11 @@
-"""Strands intervention handlers for the on-call agent.
+"""Decision handlers for the on-call agent.
 
-- TriageDecider: classifies an alert into a fixed triage class using the
-  local decision model, before the agent spends any big-model budget.
-- RemediationGuardrail: asks "are these tool args grounded?" right before a
+- TriageDecider: a pre-agent policy gate. It classifies an alert into a
+  fixed triage class with the local decision model and decides whether an
+  agent is created at all, so it runs before any big-model budget is spent.
+  It is a plain class, not an InterventionHandler: the decision it makes is
+  "should an agent run?", which has to happen before the agent exists.
+- RemediationGuardrail (a Strands InterventionHandler): asks "are these tool args grounded?" right before a
   remediation tool runs; denies hallucinated args, confirms on uncertainty,
   proceeds when grounded.
 
@@ -72,8 +75,8 @@ def triage_state_and_questions(alert: dict[str, Any]) -> tuple[str, dict]:
     return state, questions
 
 
-class TriageDecider(InterventionHandler):
-    """Classify each incoming alert; route low-confidence triage to a human."""
+class TriageDecider:
+    """Pre-agent policy gate: classify each alert; route low-confidence triage to a human."""
 
     name = "triage-decider"
 
@@ -107,9 +110,6 @@ class TriageDecider(InterventionHandler):
             )
         return {"class": cls, "confidence": conf, "action": action, "reason": reason}
 
-    # No before_tool_call override needed here: this handler classifies
-    # alerts directly via decide(), outside the tool-call lifecycle. The
-    # base-class default (Proceed) applies.
 
 
 # Note on wording: the pattern doc phrases this as "Are the tool's argument
@@ -124,6 +124,20 @@ GROUNDING_QUESTION = (
     "Does every value in the proposed tool call appear in the alert payload "
     "above? Answer yes only if all of them do; answer no if any value is invented."
 )
+
+
+# Arguments that are the agent's own choices, not facts it should copy from
+# the alert. A replica count or a silence duration is a plan; a ticket title
+# or summary is prose the agent writes. Checking these for "does it appear in
+# the alert?" flags correct plans as hallucinations (and, worse, a score near
+# the boundary lets invented values through by luck). They are left out of
+# the grounding check; identifying values (service, namespace, alert_id,
+# severity) are always checked.
+PLANNING_ARGS: dict[str, set[str]] = {
+    "scale_deployment": {"replicas"},
+    "silence_alert": {"duration_minutes", "reason"},
+    "open_incident_ticket": {"title", "summary"},
+}
 
 
 class RemediationGuardrail(InterventionHandler):
@@ -143,8 +157,15 @@ class RemediationGuardrail(InterventionHandler):
         decider: DeciderClient | None = None,
         deny_threshold: float = 0.35,
         confirm_threshold: float = 0.60,
+        planning_args: dict[str, set[str]] | None = None,
     ) -> None:
         self.alert = alert
+        self.planning_args = PLANNING_ARGS if planning_args is None else planning_args
+        self.records: list[dict] = []  # one entry per checked call, for the demo table
+        # Strands re-runs before_tool_call when an interrupted (Confirm) call is
+        # resumed. Reuse the first decision for that toolUseId so the model is
+        # asked once and the call is recorded once.
+        self._decided: dict[str, Any] = {}
         self.decider = decider or get_client()
         self.deny_threshold = deny_threshold
         self.confirm_threshold = confirm_threshold
@@ -178,8 +199,22 @@ class RemediationGuardrail(InterventionHandler):
     # -- the guardrail ----------------------------------------------------
 
     def before_tool_call(self, event, **kwargs):  # noqa: ANN001, ANN202
+        use_id = event.tool_use.get("toolUseId")
+        if use_id is not None and use_id in self._decided:
+            return self._decided[use_id]
+        action = self._check(event)
+        if use_id is not None:
+            self._decided[use_id] = action
+        return action
+
+    def _check(self, event):  # noqa: ANN001, ANN202
         tool_name = event.tool_use["name"]
-        tool_args = dict(event.tool_use.get("input") or {})
+        all_args = dict(event.tool_use.get("input") or {})
+        exempt = self.planning_args.get(tool_name, set())
+        tool_args = {k: v for k, v in all_args.items() if k not in exempt}
+        if not tool_args:
+            self.records.append({"tool": tool_name, "args": all_args, "score": None, "action": "proceed"})
+            return Proceed(reason=f"{tool_name}: only planning arguments, nothing to ground")
 
         state = self._state_text(tool_name, tool_args)
         result = self.decider.decide(
@@ -190,7 +225,11 @@ class RemediationGuardrail(InterventionHandler):
         alert_id = self.alert.get("id", "?")
         suspect = self._ungrounded_values(tool_args, render_alert(self.alert))
 
+        def record(action: str) -> None:
+            self.records.append({"tool": tool_name, "args": all_args, "score": score, "action": action})
+
         if score < self.deny_threshold:
+            record("deny")
             # Confidently ungrounded: the call never runs. The reason goes
             # back to the model, so the agent can self-correct instead of
             # just being told no.
@@ -205,10 +244,11 @@ class RemediationGuardrail(InterventionHandler):
             )
 
         if score < self.confirm_threshold:
+            record("confirm")
             return Confirm(
                 prompt=(
                     f"Uncertain grounding ({score:.2f}) for {tool_name} with args "
-                    f"{tool_args}. Approve?"
+                    f"{all_args} on alert {alert_id}. Approve? [y/N]"
                 ),
                 reason=(
                     f"Guardrail is not confident that the arguments to "
@@ -216,4 +256,5 @@ class RemediationGuardrail(InterventionHandler):
                 ),
             )
 
+        record("proceed")
         return Proceed(reason=f"grounding score {score:.2f} for {tool_name}")

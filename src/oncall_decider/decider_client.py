@@ -51,8 +51,9 @@ import threading
 import time
 from typing import Any
 
-from strands_decider.infer import EngineConfig, SystemOneEngine
-from strands_decider.modeling import StrandsDeciderModel
+# The schema only needs pydantic. torch/transformers (via infer/modeling) are
+# imported on first decide(), so importing this module, the handlers, or the
+# tests never pulls in the model stack.
 from strands_decider.schema import (
     ChoiceQuestion,
     NoulQuestion,
@@ -66,19 +67,23 @@ DEFAULT_MODEL_ID = "StrandsAgents/strands-decider-2B-hobson-v19"
 ENV_MODEL_ID = "DECIDER_MODEL_ID"
 
 
-class _CpuBf16Engine(SystemOneEngine):
-    """SystemOneEngine that keeps the torso in bf16 on CPU.
+def _cpu_bf16_engine_class():
+    """SystemOneEngine subclass that keeps the torso in bf16 on CPU.
 
     The stock engine upcasts the torso bf16->fp32 on CPU for speed (~2x on
     Apple silicon) at the cost of ~9 GB RAM. On memory-constrained machines
-    that is fatal, and bf16 inference gives the same answers, just slower
-    (~1.7 s steady-state on this VM). Overriding the hook is a no-op by
-    design, not a monkeypatch: _upcast_torso_for_cpu is a real method on
-    SystemOneEngine.
+    that is fatal, and bf16 inference gives the same answers, just slower.
+    Overriding the hook is a no-op by design, not a monkeypatch:
+    _upcast_torso_for_cpu is a real method on SystemOneEngine. Built lazily so
+    torch is imported only when the model is actually loaded.
     """
+    from strands_decider.infer import SystemOneEngine
 
-    def _upcast_torso_for_cpu(self) -> None:  # noqa: D102 - deliberate no-op
-        return
+    class _CpuBf16Engine(SystemOneEngine):
+        def _upcast_torso_for_cpu(self) -> None:  # noqa: D102 - deliberate no-op
+            return
+
+    return _CpuBf16Engine
 
 
 class DeciderClient:
@@ -91,40 +96,39 @@ class DeciderClient:
     def __init__(self, model_id: str | None = None, device: str = "cpu") -> None:
         self.model_id = model_id or os.environ.get(ENV_MODEL_ID, DEFAULT_MODEL_ID)
         self.device = device
-        self._engine: SystemOneEngine | None = None
+        self._engine: Any = None
         self._lock = threading.Lock()
 
     # -- loading -----------------------------------------------------------
 
     def _resolve_checkpoint(self) -> str:
-        """Resolve the model id to a local directory, staying offline.
+        """Resolve the model id to a local directory.
 
-        A local directory is used as-is. A Hub id is resolved through the
-        Hub cache only (no network), which requires the weights to be cached
-        already -- see module docstring. If you do want a one-off download,
-        run with HF_HUB_OFFLINE unset and HF_HUB_DISABLE_XET=1 (XET hangs
-        through some proxies).
+        A local directory is used as-is. A Hub id is fetched through the Hub
+        cache: downloaded on first use, read from the cache afterwards. Set
+        HF_HUB_OFFLINE=1 yourself to forbid network access once it is cached,
+        and HF_HUB_DISABLE_XET=1 if downloads hang behind a proxy.
         """
         if os.path.isdir(self.model_id):
             return self.model_id
-        os.environ.setdefault("HF_HUB_OFFLINE", "1")
-        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-        # snapshot_download with HF_HUB_OFFLINE=1 resolves from the local
-        # cache and raises if the snapshot is missing -- never hits the net.
         from huggingface_hub import snapshot_download
 
         return str(snapshot_download(self.model_id))
 
-    def _load(self) -> SystemOneEngine:
+    def _load(self) -> Any:
         if self._engine is not None:
             return self._engine
         with self._lock:
             if self._engine is not None:
                 return self._engine
             t0 = time.perf_counter()
+            from strands_decider.infer import EngineConfig
+            from strands_decider.modeling import StrandsDeciderModel
+
             checkpoint = self._resolve_checkpoint()
             model = StrandsDeciderModel.load(checkpoint)
-            engine = _CpuBf16Engine(model, EngineConfig(device=self.device))
+            engine_cls = _cpu_bf16_engine_class()
+            engine = engine_cls(model, EngineConfig(device=self.device))
             self._engine = engine
             dt = time.perf_counter() - t0
             log.info(

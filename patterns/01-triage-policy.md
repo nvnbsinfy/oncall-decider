@@ -69,25 +69,32 @@ result = client.decide(state, {"triage": questions["triage"]})
 
 Copy the keys verbatim — the model picks among these exact strings.
 
-## The wiring: triage as a Strands InterventionHandler
+In this repo, what each class leads to is fixed in code (`agent.run_storm`):
+`page_now` gets an agent with remediation tools behind the guardrail,
+`investigate` gets an agent that can only open a ticket, and
+`suppress_noise` / `false_positive` get no agent at all.
 
-The handler sits in front of the agent and classifies the alert before the
-agent spends any big-model budget on it. Low confidence routes to a human
-`Confirm` instead of letting a guess through.
+## The wiring: triage as a pre-agent policy gate
+
+The gate sits in front of the agent and classifies the alert before any
+agent is created, so no big-model budget is spent on alerts that don't need
+one. It is a plain class rather than a Strands `InterventionHandler` on
+purpose: its decision is "should an agent run at all, and with which
+tools?", and that has to be made before the agent exists. (The guardrail in
+[Pattern 02](02-remediation-guardrail.md) is the part that lives inside the
+agent loop.) Low confidence routes to a human instead of letting a guess
+through.
 
 ```python
 import os
-from strands.interventions import InterventionHandler, Proceed, Confirm
 from oncall_decider.decider_client import get_client
 from oncall_decider.interventions import triage_state_and_questions
 
 CONFIRM_THRESHOLD = float(os.environ.get("TRIAGE_CONFIRM_THRESHOLD", "0.60"))
 
 
-class TriageDecider(InterventionHandler):
-    """Classify each incoming alert; ask a human when unsure."""
-
-    name = "triage-decider"
+class TriageDecider:
+    """Pre-agent policy gate: classify each alert; ask a human when unsure."""
 
     def __init__(self, confirm_threshold=CONFIRM_THRESHOLD):
         self.client = get_client()
@@ -117,7 +124,7 @@ class TriageDecider(InterventionHandler):
         }
 ```
 
-The handler classifies the alert before the agent spends any big-model
+The gate classifies the alert before the agent spends any big-model
 budget on it. The caller checks `action`: `"auto"` means carry on,
 `"confirm"` means stop and ask a human. The `distribution` field on the
 raw result is there if you want to log near-misses (two classes
@@ -152,7 +159,7 @@ state (text) + "which class?" + fixed options → (choice, confidence)
 - Routing support tickets? Options become `billing`, `bug`, `how-to`, `spam`.
 - Severity scoring? Options become `sev1` … `sev4`.
 - Anything where the answer is "pick one of N, and tell me how sure you are"
-  works, and the InterventionHandler wiring (confirm-below-threshold,
-  proceed-above) transfers unchanged. The only part that needs real work is
+  works, and the gate (confirm below the threshold, act above it) transfers
+  unchanged. The only part that needs real work is
   writing option descriptions that the model can't misread — that's where
   your domain knowledge goes.
