@@ -1,80 +1,107 @@
-On-Call Decider ù scripted storm demo (mock generative model)
-python : 
-At line:1 char:1
-+ python demo\run_storm.py 2>&1 | Tee-Object -FilePath bedrock-run.txt
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-Triage and the remediation guardrail run on Decider 2B; the
-generative half is a scripted stand-in (no AWS credentials here).
+On-Call Decider — storm demo
+Decider 2B runs triage and the remediation guardrail locally.
+The generative model used for this run is named on the next line:
 
-Fetching 37 files:   0%|          | 0/37 [00:00<?, ?it/s]
-Fetching 37 files: 100%|##########| 37/37 [00:00<00:00, 884.22it/s]
+Using Bedrock generative model: amazon.nova-micro-v1:0
+Downloading bytes:           |  0.00B            
+Reconstructing (incomplete total...): |          |  0.00B /  0.00B            [A
 
-Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]
-Loading weights:   3%|3         | 10/320 [00:00<00:06, 51.14it/s]
-Loading weights:   5%|5         | 16/320 [00:00<00:10, 30.17it/s]
-Loading weights:  11%|#         | 34/320 [00:00<00:05, 55.02it/s]
-Loading weights:  13%|#2        | 41/320 [00:00<00:05, 51.49it/s]
-Loading weights:  15%|#4        | 47/320 [00:01<00:07, 36.95it/s]
-Loading weights:  17%|#6        | 54/320 [00:01<00:06, 38.84it/s]
-Loading weights:  19%|#9        | 62/320 [00:01<00:06, 40.88it/s]
-Loading weights:  28%|##7       | 88/320 [00:01<00:03, 74.77it/s]
-Loading weights:  30%|###       | 97/320 [00:01<00:03, 61.90it/s]
-Loading weights:  32%|###2      | 104/320 [00:01<00:03, 60.86it/s]
-Loading weights:  35%|###4      | 111/320 [00:02<00:03, 58.06it/s]
-Loading weights:  37%|###6      | 118/320 [00:02<00:04, 44.81it/s]
-Loading weights:  39%|###9      | 125/320 [00:02<00:04, 45.86it/s]
-Loading weights:  41%|####      | 130/320 [00:02<00:04, 44.85it/s]
-Loading weights:  43%|####3     | 139/320 [00:02<00:03, 45.96it/s]
-Loading weights:  45%|####5     | 144/320 [00:03<00:06, 26.94it/s]
-Loading weights:  46%|####6     | 148/320 [00:03<00:07, 22.06it/s]
-Loading weights:  48%|####7     | 152/320 [00:03<00:07, 23.06it/s]
-Loading weights:  48%|####8     | 155/320 [00:03<00:08, 20.22it/s]
-Loading weights:  51%|#####1    | 164/320 [00:04<00:05, 28.84it/s]
-Loading weights:  52%|#####2    | 168/320 [00:04<00:05, 27.20it/s]
-Loading weights:  54%|#####3    | 172/320 [00:04<00:07, 19.79it/s]
-Loading weights:  55%|#####4    | 175/320 [00:04<00:07, 18.67it/s]
-Loading weights:  56%|#####5    | 178/320 [00:05<00:07, 18.31it/s]
-Loading weights: 100%|##########| 320/320 [00:05<00:00, 62.92it/s]
-[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. 
-This is correct but much slower; install `causal_conv1d` for the optimized kernel.
-[transformers] `chunk_gated_delta_rule` is falling back to its reference PyTorch implementation because `flash-linear-attention` is 
-not installed. This is correct but much slower; install `flash-linear-attention` for the optimized kernel.
-[oncall-decider] Decider 2B loaded in 15.0s (model=StrandsAgents/strands-decider-2B-hobson-v19, device=cpu)
+Fetching 37 files:   0%|          | 0/37 [00:00<?, ?it/s][A[AFetching 37 files: 100%|##########| 37/37 [00:00<00:00, 1238.74it/s]
+Download complete:           |  0.00B            
+Reconstruction complete: |          |  0.00B /  0.00B                         [ADownload complete:           |  0.00B            
+Reconstruction complete: |          |  0.00B /  0.00B            
+Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]Loading weights:   1%|          | 3/320 [00:00<00:24, 12.80it/s]Loading weights:   2%|1         | 5/320 [00:00<00:24, 12.66it/s]Loading weights:   4%|3         | 12/320 [00:00<00:12, 24.81it/s]Loading weights:   5%|5         | 17/320 [00:00<00:10, 27.94it/s]Loading weights:   6%|6         | 20/320 [00:00<00:13, 21.99it/s]Loading weights:   7%|7         | 23/320 [00:01<00:13, 21.33it/s]Loading weights:   9%|9         | 30/320 [00:01<00:11, 25.95it/s]Loading weights:  10%|#         | 33/320 [00:01<00:10, 26.64it/s]Loading weights:  11%|#1        | 36/320 [00:01<00:18, 15.05it/s]Loading weights:  13%|#2        | 41/320 [00:02<00:18, 15.07it/s]Loading weights:  15%|#4        | 47/320 [00:02<00:13, 19.73it/s]Loading weights:  16%|#5        | 50/320 [00:03<00:36,  7.40it/s]Loading weights:  16%|#6        | 52/320 [00:04<00:40,  6.57it/s]Loading weights:  18%|#7        | 56/320 [00:04<00:31,  8.39it/s]Loading weights:  18%|#8        | 58/320 [00:04<00:28,  9.07it/s]Loading weights:  19%|#8        | 60/320 [00:04<00:25, 10.17it/s]Loading weights:  19%|#9        | 62/320 [00:05<00:37,  6.80it/s]Loading weights:  20%|##        | 64/320 [00:05<00:42,  6.02it/s]Loading weights:  20%|##        | 65/320 [00:06<00:49,  5.14it/s]Loading weights:  21%|##        | 66/320 [00:06<00:47,  5.37it/s]Loading weights:  21%|##        | 67/320 [00:06<00:53,  4.69it/s]Loading weights:  21%|##1       | 68/320 [00:07<01:12,  3.48it/s]Loading weights:  26%|##5       | 83/320 [00:07<00:14, 16.50it/s]Loading weights:  27%|##6       | 86/320 [00:08<00:26,  8.94it/s]Loading weights:  34%|###4      | 110/320 [00:08<00:07, 26.32it/s]Loading weights:  42%|####2     | 136/320 [00:08<00:03, 48.68it/s]Loading weights:  48%|####8     | 155/320 [00:08<00:02, 65.62it/s]Loading weights:  75%|#######5  | 240/320 [00:08<00:00, 180.99it/s]Loading weights: 100%|##########| 320/320 [00:08<00:00, 36.66it/s] 
+[oncall-decider] Decider 2B loaded in 29.1s (model=StrandsAgents/strands-decider-2B-hobson-v19, device=cpu)
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `chunk_gated_delta_rule` is falling back to its reference PyTorch implementation because `flash-linear-attention` is not installed. This is correct but much slower; install `flash-linear-attention` for the optimized kernel.
 ALT-1001 checkout-api: page_now (confidence 0.84)
-<thinking> The alert indicates that the checkout-api in the prod namespace is experiencing a high 5xx error rate post a recent deployment. Given that the error rate is climbing and is currently at 12%, it's likely that there is a problem with the new deployment. Since all tools are in dry-run mode, we can't actually fix the issue but can simulate the remediation steps. First, I should silence the alert to indicate that we're aware of the issue and taking steps. Then, I can simulate scaling the deployment to see if that helps with the error rate, and finally, I'll simulate opening an incident ticket to log this issue for further investigation.</thinking>
+<thinking> The User's alert indicates that the `checkout-api` is experiencing a significant increase in 5xx error rates, which is burning through the error budget rapidly. To mitigate this issue, we should consider a few potential remediation steps:
+1. Restarting the service to clear any transient issues.
+2. Scaling the deployment to increase the number of replicas, which might help distribute the load better.
+3. Silencing the alert temporarily to prevent alert fatigue.
+4. Opening an incident ticket to log the issue and assign it to the appropriate team.
 
-Tool #1: silence_alert
+I need to decide on the best course of action based on the alert details. Given the recent deploy, a service restart might be a good first step. If that doesn't resolve the issue, scaling the deployment could be considered. Finally, silencing the alert and opening an incident ticket should follow to manage alert fatigue and log the incident.
 
+Let's start with a service restart.</thinking>
+
+
+Tool #1: restart_service
+  GUARDRAIL: Uncertain grounding (0.50) for restart_service with args {'service': 'checkout-api', 'namespace': 'prod'} on alert ALT-1001. Approve? [y/N] [oncall-decider] DRY-RUN restart_service(service='checkout-api', namespace='prod')
+<thinking> The dry-run simulation for restarting the `checkout-api` service suggests that this would be a potential first step to address the transient issues. If the error rate remains high after the restart, I should consider scaling up the deployment to increase the number of replicas. 
+
+Next, I will scale the deployment of `checkout-api` to increase its replicas.</thinking> 
 Tool #2: scale_deployment
-
-Tool #3: open_incident_ticket
 [oncall-decider] DRY-RUN scale_deployment(service='checkout-api', replicas=3, namespace='prod')
-[oncall-decider] DRY-RUN open_incident_ticket(title='High 5xx error rate in checkout-api', severity='High', summary="checkout-api's 5xx rate has been climbing for 25 minutes and is now sitting at 12%. The failures started minutes after the latest deploy of the payments path.")
-  agent paused: the guardrail asked a human to confirm a call
+<thinking> The dry-run simulation for scaling the `checkout-api` deployment to 3 replicas suggests that this could help distribute the load better and potentially alleviate the issue if it's related to resource contention or similar problems.
+
+If the 5xx error rate does not decrease after the service restart and the deployment scaling, I should proceed with silencing the alert to manage alert fatigue and open an incident ticket to log the issue for further investigation.
+
+First, let's silence the alert.</thinking> 
+Tool #3: silence_alert
+[oncall-decider] DRY-RUN silence_alert(alert_id='ALT-1001', duration_minutes=60, reason='Initial mitigation steps taken.')
+<thinking> The dry-run simulation for silencing the alert `ALT-1001` suggests that this step would temporarily suppress the alert for 60 minutes, allowing us to focus on the initial mitigation steps without being overwhelmed by repeated alerts.
+
+Next, I should open an incident ticket to log the detailed incident for further investigation and resolution.</thinking> 
+Tool #4: open_incident_ticket
+[oncall-decider] DRY-RUN open_incident_ticket(title='High 5xx Error Rate in checkout-api', severity='High', summary="checkout-api's 5xx error rate has been climbing for 25 minutes and is now sitting at 12%. The failures started minutes after the latest deploy of the payments path, and the failure mode looks consistent across pods rather than a single bad host.")
+<thinking> The dry-run simulation for opening an incident ticket indicates that an incident with the title "High 5xx Error Rate in checkout-api" has been prepared, documenting the issue with a high severity level and a detailed summary.
+
+Since all actions have been carried out in a dry-run mode, no actual changes have been made to the environment. However, this sequence of actions would be taken if we were in a real scenario to address the issue of the elevated 5xx error rate for `checkout-api`.
+
+To summarize the dry-run actions taken:
+1. Restarted the `checkout-api` service in the `prod` namespace.
+2. Scaled the `checkout-api` deployment to 3 replicas in the `prod` namespace.
+3. Silenced alert `ALT-1001` for 60 minutes with the reason "Initial mitigation steps taken."
+4. Opened an incident ticket for the high 5xx error rate issue in `checkout-api`.
+
+These steps should be followed in an actual scenario to mitigate the issue and log it for further investigation.</thinking>
+
+I have completed the remediation steps in dry-run mode. Here's the summary of what would have been done in a real scenario:
+- Restarted `checkout-api` service in `prod`.
+- Scaled `checkout-api` deployment to 3 replicas in `prod`.
+- Silenced alert `ALT-1001` for 60 minutes.
+- Opened an incident ticket for the high 5xx error rate issue.
+
+If you need to proceed with a real scenario, please let me know, and I will execute the actual commands.  human approved a guardrail confirm
+
+======================================================================
+HUMAN VALIDATION — the agent proposes this incident:
+  title    : High 5xx Error Rate in checkout-api
+  severity : High
+  summary  : checkout-api's 5xx error rate has been climbing for 25 minutes and is now sitting at 12%. The failures started minutes after the latest deploy of the payments path, and the failure mode looks consistent across pods rather than a single bad host.
+  target   : dev•••••.service-now.com (ServiceNow)
+  caller   : will be set to the API user (awsagent)
+======================================================================
+[c]reate this incident in ServiceNow, or [n]o incident? (default: no incident) [oncall-decider] ServiceNow incident created: INC0010006
 ALT-1002 auth-service: page_now (confidence 0.96)
-<thinking> The alert indicates that the `auth-service` pods are experiencing a CrashLoopBackOff state with 47 restarts in the last hour. The liveness probes are not passing, suggesting a problem with the configuration or the image. To resolve this issue, we should first restart the service to see if that helps. If the problem persists, we may need to scale the deployment temporarily or silence the alert if it's not critical. However, since all actions are dry-run, we'll only simulate the actions.</thinking>
+<thinking> The alert indicates that the `auth-service` pods are crashing repeatedly, suggesting a configuration or image issue. Given the tools available, I can simulate silencing the alert, restarting the service, or scaling the deployment. The appropriate action will depend on whether the issue persists after these actions. I will start by restarting the `auth-service` to see if it resolves the issue. </thinking>
 
 
 Tool #1: restart_service
 [oncall-decider] DRY-RUN restart_service(service='auth-service', namespace='prod')
-<thinking> The simulated restart of the `auth-service` was successful in the dry-run context. Since the dry-run indicates a successful restart, we should check if the problem has been resolved. If it persists, we might consider scaling up the deployment temporarily to ensure availability or silencing the alert if it's deemed non-critical. However, because we are in a dry-run, we cannot actually verify the liveness probes or the logs to confirm if the issue is resolved.</thinking> 
+<thinking> I simulated a restart of the `auth-service` in the `prod` namespace. Since this was a dry-run, the service was not actually restarted. To determine if this step resolves the issue, I should wait and observe if the problem persists. If the issue continues, I will next consider scaling the deployment to ensure there are enough replicas to handle the load. If the problem still persists after that, I may need to silence the alert as a temporary measure. </thinking> 
 
-Given that the dry-run simulation indicated a restart but we cannot confirm the liveness probes are passing or if the pods are stable, we'll simulate scaling up the deployment to ensure high availability:
+<thinking> Since this was a dry-run, I'll next observe for a bit to see if there are any changes in the `auth-service` status. If the issue persists, I will proceed with scaling the deployment next. </thinking>
 
-
-Tool #2: scale_deployment
-  agent paused: the guardrail asked a human to confirm a call
 ALT-1003 search-api: investigate (confidence 0.19)
 ALT-1004 edge-gateway: investigate (confidence 0.97)
-<thinking> The User has provided details about a TLS certificate on the edge-gateway that is expiring in 6 days and the auto-renewal job has failed. The incident needs to be logged with the provided details. Since all tools are in dry-run mode, I will simulate opening an incident ticket with the given information.</thinking>
-
+<thinking> The user has reported an alert about an expiring TLS certificate on the edge-gateway and mentioned that the auto-renewal job failed. We need to create an incident ticket for this issue with appropriate details. Based on the provided information, the title, severity, and summary are already available. I will use the `open_incident_ticket` tool to simulate creating an incident ticket.</thinking>
 
 Tool #1: open_incident_ticket
 [oncall-decider] DRY-RUN open_incident_ticket(title='TLS certificate on edge-gateway expires in 6 days', severity='P2', summary="The public-facing certificate for edge-gateway expires in 6 days. The auto-renewal job ran but failed to complete the challenge, so nothing is scheduled to fix this on its own. If it lapses, every external request hits a certificate error. Six days is enough to renew by hand, but short enough that it shouldn't wait for the next sprint.")
-<thinking> The simulation of opening an incident ticket was successful. Although it was a dry run, the incident ticket with the title "TLS certificate on edge-gateway expires in 6 days" and the severity level P2 has been recorded. The next step would be to inform the team about this incident and initiate a manual renewal process to avoid any potential certificate errors.</thinking>
+<thinking> The dry-run simulation for creating an incident ticket has been successfully completed. The incident ticket details are as follows:
+- Title: TLS certificate on edge-gateway expires in 6 days
+- Severity: P2
+- Summary: The public-facing certificate for edge-gateway expires in 6 days. The auto-renewal job ran but failed to complete the challenge, so nothing is scheduled to fix this on its own. If it lapses, every external request hits a certificate error. Six days is enough to renew by hand, but short enough that it shouldn't wait for the next sprint.
+</thinking>
+
+I will inform the user that the incident ticket has been simulated and provide them with the details.
+
+***Remediation Steps for the Dry-Run:***
+1. Acknowledge the alert.
+2. Manually initiate the certificate renewal process for the edge-gateway to prevent any lapse in security.
+3. Monitor the renewal process to ensure it completes successfully.
 
 Here is the simulated incident ticket:
 
@@ -82,9 +109,20 @@ Here is the simulated incident ticket:
 
 **Severity:** P2
 
-**Summary:** The public-facing certificate for edge-gateway expires in 6 days. The auto-renewal job ran but failed to complete the challenge, so nothing is scheduled to fix this on its own. If it lapses, every external request hits a certificate error. Six days is enough to renew by hand, but short enough that it shouldn't wait for the next sprint.
+**Summary:** 
+The public-facing certificate for edge-gateway expires in 6 days. The auto-renewal job ran but failed to complete the challenge, so nothing is scheduled to fix this on its own. If it lapses, every external request hits a certificate error. Six days is enough to renew by hand, but short enough that it shouldn't wait for the next sprint.
 
-Since this is a dry-run, no actual ticket has been filed. However, in a real scenario, this would have been logged as a P2 incident, indicating it should be addressed promptly to avoid a lapse in the certificate. The team should now take the necessary steps to manually renew the certificate to avoid any certificate errors.ALT-1005 worker-pool: suppress_noise (confidence 0.87)
+Please proceed with the manual renewal process to address this issue promptly.
+======================================================================
+HUMAN VALIDATION — the agent proposes this incident:
+  title    : TLS certificate on edge-gateway expires in 6 days
+  severity : P2
+  summary  : The public-facing certificate for edge-gateway expires in 6 days. The auto-renewal job ran but failed to complete the challenge, so nothing is scheduled to fix this on its own. If it lapses, every external request hits a certificate error. Six days is enough to renew by hand, but short enough that it shouldn't wait for the next sprint.
+  target   : dev•••••.service-now.com (ServiceNow)
+  caller   : will be set to the API user (awsagent)
+======================================================================
+[c]reate this incident in ServiceNow, or [n]o incident? (default: no incident) [oncall-decider] ServiceNow incident created: INC0010007
+ALT-1005 worker-pool: suppress_noise (confidence 0.87)
 ALT-1006 cache-layer: suppress_noise (confidence 0.86)
 ALT-1007 recommender: false_positive (confidence 0.87)
 ALT-1008 order-worker: page_now (confidence 0.30)
@@ -93,13 +131,22 @@ Triage table
 ----------------------------------------------------------------------------------------
 alert     service         class           conf   outcome
 ----------------------------------------------------------------------------------------
-ALT-1001  checkout-api    page_now        0.84   paused: guardrail asked a human to confirm
-ALT-1002  auth-service    page_now        0.96   paused: guardrail asked a human to confirm
+ALT-1001  checkout-api    page_now        0.84   remediated (dry-run); ServiceNow incident INC0010006 created (human-validated)
+ALT-1002  auth-service    page_now        0.96   remediated (dry-run)
 ALT-1003  search-api      investigate     0.19   needs human
-ALT-1004  edge-gateway    investigate     0.97   ticket opened (dry-run)
+ALT-1004  edge-gateway    investigate     0.97   ServiceNow incident INC0010007 created (human-validated)
 ALT-1005  worker-pool     suppress_noise  0.87   no action
 ALT-1006  cache-layer     suppress_noise  0.86   no action
 ALT-1007  recommender     false_positive  0.87   no action
 ALT-1008  order-worker    page_now        0.30   needs human
 ----------------------------------------------------------------------------------------
-8 alerts triaged, 0 ungrounded call(s) denied by the guardrail.
+8 alerts triaged. Guardrail: 5 call(s) checked, 0 denied as ungrounded, 1 sent to a human (1 approved, 0 declined).
+
+Guardrail checks
+----------------------------------------------------------------------------------------
+confirm  0.50   restart_service(service='checkout-api', namespace='prod')
+proceed  0.61   scale_deployment(service='checkout-api', replicas=3, namespace='prod')
+proceed  0.67   silence_alert(reason='Initial mitigation steps taken.', duration_minutes=6)
+proceed  0.70   open_incident_ticket(severity='High', summary="checkout-api's 5xx error rate has )
+proceed  0.63   restart_service(service='auth-service', namespace='prod')
+----------------------------------------------------------------------------------------
